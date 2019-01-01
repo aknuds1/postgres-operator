@@ -463,9 +463,25 @@ func (c *Cluster) createEndpoint(role PostgresRole) (*v1.Endpoints, error) {
 	}
 	endpointsSpec := c.generateEndpoint(role, subsets)
 
+	c.logger.Debugf("creating endpoint for role %s in namespace %s: %v", role,
+		endpointsSpec.Namespace, endpointsSpec)
 	endpoints, err := c.KubeClient.Endpoints(endpointsSpec.Namespace).Create(endpointsSpec)
 	if err != nil {
-		return nil, fmt.Errorf("could not create %s endpoint: %v", role, err)
+		if !strings.Contains(err.Error(), fmt.Sprintf(
+			"endpoints \"%s\" already exists", endpoints.ObjectMeta.Name)) {
+			c.logger.Warnf("failed to create endpoint for role %s in namespace %s: %s", role,
+				endpointsSpec.Namespace, err)
+			return nil, fmt.Errorf("could not create %s endpoint: %v", role, err)
+		}
+
+		c.logger.Debugf("endpoint for role %s in namespace %s already exists, updating it", role,
+			endpointsSpec.Namespace)
+		endpoints, err = c.KubeClient.Endpoints(endpointsSpec.Namespace).Update(endpointsSpec)
+		if err != nil {
+			c.logger.Debugf("could not update endpoint for role %s in namespace %s: %s", role,
+				endpointsSpec.Namespace, err)
+			return nil, fmt.Errorf("could not update %s endpoint: %v", role, err)
+		}
 	}
 
 	c.Endpoints[role] = endpoints
