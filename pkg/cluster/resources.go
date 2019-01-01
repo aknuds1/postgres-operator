@@ -519,12 +519,25 @@ func (c *Cluster) generateEndpointSubsets(role PostgresRole) []v1.EndpointSubset
 
 func (c *Cluster) createPodDisruptionBudget() (*policybeta1.PodDisruptionBudget, error) {
 	podDisruptionBudgetSpec := c.generatePodDisruptionBudget()
+	c.logger.Debugf("Creating pod disruption budget %s", podDisruptionBudgetSpec.Name)
 	podDisruptionBudget, err := c.KubeClient.
 		PodDisruptionBudgets(podDisruptionBudgetSpec.Namespace).
 		Create(podDisruptionBudgetSpec)
-
 	if err != nil {
-		return nil, err
+		c.logger.Debugf("Failed to create pod disruption budget %s: %s", podDisruptionBudgetSpec.Name,
+			err)
+		if !strings.Contains(err.Error(), fmt.Sprintf(
+			"poddisruptionbudgets.policy \"%s\" already exists", podDisruptionBudgetSpec.Name)) {
+			return nil, err
+		}
+
+		c.logger.Debugf("Updating pod disruption budget %s", podDisruptionBudgetSpec.Name)
+		podDisruptionBudget, err = c.KubeClient.
+			PodDisruptionBudgets(podDisruptionBudgetSpec.Namespace).
+			Update(podDisruptionBudgetSpec)
+		if err != nil {
+			return nil, err
+		}
 	}
 	c.PodDisruptionBudget = podDisruptionBudget
 
