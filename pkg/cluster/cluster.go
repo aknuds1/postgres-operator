@@ -615,7 +615,6 @@ func (c *Cluster) Delete() {
 	}
 
 	for _, role := range []PostgresRole{Master, Replica} {
-
 		if err := c.deleteEndpoint(role); err != nil {
 			c.logger.Warningf("could not delete %s endpoint: %v", role, err)
 		}
@@ -984,12 +983,22 @@ func (c *Cluster) deleteClusterObject(
 
 func (c *Cluster) deletePatroniClusterEndpoints() error {
 	get := func(name string) (spec.NamespacedName, error) {
+		c.logger.Debugf("Getting patroni endpoint '%s' from namespace '%s'", name, c.Namespace)
 		ep, err := c.KubeClient.Endpoints(c.Namespace).Get(name, metav1.GetOptions{})
-		return util.NameFromMeta(ep.ObjectMeta), err
+		objName := util.NameFromMeta(ep.ObjectMeta)
+		c.logger.Debugf("Got patroni endpoint '%s' from namespace '%s': %s", name, c.Namespace, objName)
+		return objName, err
 	}
 
 	deleteEndpointFn := func(name string) error {
-		return c.KubeClient.Endpoints(c.Namespace).Delete(name, c.deleteOptions)
+		c.logger.Debugf("Deleting patroni endpoint '%s' from namespace '%s'", name, c.Namespace)
+		if err := c.KubeClient.Endpoints(c.Namespace).Delete(name, c.deleteOptions); err != nil {
+			c.logger.Warnf("Failed to delete patroni endpoint '%s' from namespace '%s': %v", name,
+				c.Namespace, err)
+			return err
+		}
+
+		return nil
 	}
 
 	return c.deleteClusterObject(get, deleteEndpointFn, "endpoint")
@@ -997,12 +1006,27 @@ func (c *Cluster) deletePatroniClusterEndpoints() error {
 
 func (c *Cluster) deletePatroniClusterConfigMaps() error {
 	get := func(name string) (spec.NamespacedName, error) {
+		c.logger.Debugf("Getting patroni configmap '%s' from namespace '%s'", name, c.Namespace)
 		cm, err := c.KubeClient.ConfigMaps(c.Namespace).Get(name, metav1.GetOptions{})
-		return util.NameFromMeta(cm.ObjectMeta), err
+		objName := util.NameFromMeta(cm.ObjectMeta)
+		if err != nil {
+			c.logger.Warnf("Failed getting patroni configmap '%s' from namespace '%s': %v", name,
+				c.Namespace, err)
+			return objName, err
+		}
+
+		c.logger.Debugf("Got patroni configmap '%s' from namespace '%s': %s", name, c.Namespace, objName)
+		return objName, nil
 	}
 
 	deleteConfigMapFn := func(name string) error {
-		return c.KubeClient.ConfigMaps(c.Namespace).Delete(name, c.deleteOptions)
+		c.logger.Debugf("Deleting patroni configmap '%s' from namespace '%s'", name, c.Namespace)
+		if err := c.KubeClient.ConfigMaps(c.Namespace).Delete(name, c.deleteOptions); err != nil {
+			c.logger.Warnf("Failed to delete patroni configmap '%s' from namespace '%s': %v", name,
+				c.Namespace, err)
+		}
+
+		return nil
 	}
 
 	return c.deleteClusterObject(get, deleteConfigMapFn, "configmap")

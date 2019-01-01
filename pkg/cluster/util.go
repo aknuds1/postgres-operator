@@ -344,6 +344,7 @@ func (c *Cluster) _waitPodLabelsReady(anyReplica bool) error {
 				}
 				masterCount = len(masterPods.Items)
 			}
+			c.logger.Debugf("Listed %d master pod(s)", masterCount)
 
 			c.logger.Debugf("Listing replica pods (label selector: %s)...",
 				replicaListOption.LabelSelector)
@@ -360,7 +361,12 @@ func (c *Cluster) _waitPodLabelsReady(anyReplica bool) error {
 				return true, nil
 			}
 
-			return masterCount+replicaCount >= podsNumber, nil
+			isReady := masterCount+replicaCount >= podsNumber
+			if !isReady {
+				c.logger.Debugf(
+					"Not ready waiting for pods as not all are ready (master count: %d, replica count: %d)", masterCount, replicaCount)
+			}
+			return isReady, nil
 		})
 
 	return err
