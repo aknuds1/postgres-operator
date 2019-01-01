@@ -438,6 +438,10 @@ func (c *Cluster) deleteService(role PostgresRole) error {
 	c.logger.Debugf("deleting service %s", role)
 
 	service := c.Services[role]
+	if service == nil {
+		c.logger.Debugf("The service for role '%s' doesn't exist", role)
+		return nil
+	}
 
 	if err := c.KubeClient.Services(service.Namespace).Delete(service.Name, c.deleteOptions); err != nil {
 		return err
