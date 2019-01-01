@@ -67,7 +67,7 @@ docker: ${DOCKERDIR}/${DOCKERFILE} docker-context
 indocker-race:
 	docker run --rm -v "${GOPATH}":"${GOPATH}" -e GOPATH="${GOPATH}" -e RACE=1 -w ${PWD} golang:1.8.1 bash -c "make linux"
 
-push:
+push: docker
 	docker push "$(IMAGE):$(TAG)$(CDP_TAG)"
 
 scm-source.json: .git
