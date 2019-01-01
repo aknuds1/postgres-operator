@@ -278,6 +278,8 @@ func (c *Cluster) waitStatefulsetReady() error {
 			listOptions := metav1.ListOptions{
 				LabelSelector: c.labelsSet(false).String(),
 			}
+			c.logger.Debugf("waiting for statefulset to be ready (label selector: %s)",
+				listOptions.LabelSelector)
 			ss, err := c.KubeClient.StatefulSets(c.Namespace).List(listOptions)
 			if err != nil {
 				return false, err
@@ -327,21 +329,32 @@ func (c *Cluster) _waitPodLabelsReady(anyReplica bool) error {
 		func() (bool, error) {
 			masterCount := 0
 			if !anyReplica {
+				c.logger.Debugf("Listing master pods (label selector: %s)...",
+					masterListOption.LabelSelector)
 				masterPods, err2 := c.KubeClient.Pods(namespace).List(masterListOption)
 				if err2 != nil {
+					c.logger.Warnf("Failed to list master pods: %s", err2)
 					return false, err2
 				}
+
 				if len(masterPods.Items) > 1 {
+					c.logger.Warnf("Too many master pods found")
 					return false, fmt.Errorf("too many masters (%d pods with the master label found)",
 						len(masterPods.Items))
 				}
 				masterCount = len(masterPods.Items)
 			}
+
+			c.logger.Debugf("Listing replica pods (label selector: %s)...",
+				replicaListOption.LabelSelector)
 			replicaPods, err2 := c.KubeClient.Pods(namespace).List(replicaListOption)
 			if err2 != nil {
+				c.logger.Warnf("Failed to list replica pods: %s", err2)
 				return false, err2
 			}
+
 			replicaCount := len(replicaPods.Items)
+			c.logger.Debugf("Listed %d replica pod(s)", replicaCount)
 			if anyReplica && replicaCount > 0 {
 				c.logger.Debugf("Found %d running replica pods", replicaCount)
 				return true, nil
