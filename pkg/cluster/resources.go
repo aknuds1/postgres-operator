@@ -472,14 +472,17 @@ func (c *Cluster) createEndpoint(role PostgresRole) (*v1.Endpoints, error) {
 	endpoints, err := c.KubeClient.Endpoints(endpointsSpec.Namespace).Create(endpointsSpec)
 	if err != nil {
 		if !strings.Contains(err.Error(), "already exists") {
-			c.logger.Warnf("failed to create endpoint for role %s in namespace %s: %s", role,
+			c.logger.Warnf("Failed to create endpoint for role %s in namespace %s: %s", role,
 				endpointsSpec.Namespace, err)
 			return nil, fmt.Errorf("could not create %s endpoint: %v", role, err)
 		}
 
 		c.logger.Debugf("endpoint for role %s in namespace %s already exists, re-creating it", role,
 			endpointsSpec.Namespace)
-		if err := c.deleteEndpoint(role); err != nil {
+		if err := c.KubeClient.Endpoints(endpointsSpec.Namespace).Delete(endpointsSpec.Name,
+			c.deleteOptions); err != nil {
+			c.logger.Warnf("Failed to delete endpoint for role %s in namespace %s: %s", role,
+				endpointsSpec.Namespace, err)
 			return nil, err
 		}
 
@@ -538,9 +541,12 @@ func (c *Cluster) createPodDisruptionBudget() (*policybeta1.PodDisruptionBudget,
 		}
 
 		c.logger.Debugf("Re-creating pod disruption budget %s", podDisruptionBudgetSpec.Name)
-		c.KubeClient.
-			PodDisruptionBudgets(podDisruptionBudgetSpec.Namespace).
-			Delete(podDisruptionBudgetSpec.Name, c.deleteOptions)
+		if err := c.deletePodDisruptionBudget(); err != nil {
+			c.logger.Debugf("Failed deleting pod disruption budget %s: %v", podDisruptionBudgetSpec.Name,
+				err)
+			return nil, err
+		}
+
 		podDisruptionBudget, err = c.KubeClient.
 			PodDisruptionBudgets(podDisruptionBudgetSpec.Namespace).
 			Create(podDisruptionBudgetSpec)
