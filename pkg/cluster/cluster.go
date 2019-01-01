@@ -986,8 +986,14 @@ func (c *Cluster) deletePatroniClusterEndpoints() error {
 		c.logger.Debugf("Getting patroni endpoint '%s' from namespace '%s'", name, c.Namespace)
 		ep, err := c.KubeClient.Endpoints(c.Namespace).Get(name, metav1.GetOptions{})
 		objName := util.NameFromMeta(ep.ObjectMeta)
+		if err != nil {
+			c.logger.Warnf("Failed getting patroni endpoint '%s' from namespace '%s': %s", name,
+				c.Namespace, err)
+			return objName, err
+		}
+
 		c.logger.Debugf("Got patroni endpoint '%s' from namespace '%s': %s", name, c.Namespace, objName)
-		return objName, err
+		return objName, nil
 	}
 
 	deleteEndpointFn := func(name string) error {

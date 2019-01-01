@@ -479,8 +479,10 @@ func (c *Cluster) createEndpoint(role PostgresRole) (*v1.Endpoints, error) {
 
 		c.logger.Debugf("endpoint for role %s in namespace %s already exists, re-creating it", role,
 			endpointsSpec.Namespace)
-		c.KubeClient.Endpoints(endpointsSpec.Namespace).Delete(endpointsSpec.Name,
-			c.deleteOptions)
+		if err := c.deleteEndpoint(role); err != nil {
+			return nil, err
+		}
+
 		endpoints, err = c.KubeClient.Endpoints(endpointsSpec.Namespace).Create(endpointsSpec)
 		if err != nil {
 			c.logger.Debugf("could not re-create endpoint for role %s in namespace %s: %s", role,
