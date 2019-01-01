@@ -474,13 +474,15 @@ func (c *Cluster) createEndpoint(role PostgresRole) (*v1.Endpoints, error) {
 			return nil, fmt.Errorf("could not create %s endpoint: %v", role, err)
 		}
 
-		c.logger.Debugf("endpoint for role %s in namespace %s already exists, updating it", role,
+		c.logger.Debugf("endpoint for role %s in namespace %s already exists, re-creating it", role,
 			endpointsSpec.Namespace)
-		endpoints, err = c.KubeClient.Endpoints(endpointsSpec.Namespace).Update(endpointsSpec)
+		c.KubeClient.Endpoints(endpointsSpec.Namespace).Delete(endpointsSpec.Name,
+			c.deleteOptions)
+		endpoints, err = c.KubeClient.Endpoints(endpointsSpec.Namespace).Create(endpointsSpec)
 		if err != nil {
-			c.logger.Debugf("could not update endpoint for role %s in namespace %s: %s", role,
+			c.logger.Debugf("could not re-create endpoint for role %s in namespace %s: %s", role,
 				endpointsSpec.Namespace, err)
-			return nil, fmt.Errorf("could not update %s endpoint: %v", role, err)
+			return nil, fmt.Errorf("could not re-create %s endpoint: %v", role, err)
 		}
 	}
 
@@ -531,10 +533,13 @@ func (c *Cluster) createPodDisruptionBudget() (*policybeta1.PodDisruptionBudget,
 			return nil, err
 		}
 
-		c.logger.Debugf("Updating pod disruption budget %s", podDisruptionBudgetSpec.Name)
+		c.logger.Debugf("Re-creating pod disruption budget %s", podDisruptionBudgetSpec.Name)
+		c.KubeClient.
+			PodDisruptionBudgets(podDisruptionBudgetSpec.Namespace).
+			Delete(podDisruptionBudgetSpec.Name, c.deleteOptions)
 		podDisruptionBudget, err = c.KubeClient.
 			PodDisruptionBudgets(podDisruptionBudgetSpec.Namespace).
-			Update(podDisruptionBudgetSpec)
+			Create(podDisruptionBudgetSpec)
 		if err != nil {
 			return nil, err
 		}
