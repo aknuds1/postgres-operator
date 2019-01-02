@@ -332,17 +332,16 @@ func generateVolumeMounts() []v1.VolumeMount {
 	}
 }
 
-func generateSpiloContainer(
-	name string,
+func (c *Cluster) generateSpiloContainer(
 	dockerImage *string,
 	resourceRequirements *v1.ResourceRequirements,
 	envVars []v1.EnvVar,
 	volumeMounts []v1.VolumeMount,
 ) *v1.Container {
-
+	c.logger.Debugf("Generating Spilo container, environment variables: %v", envVars)
 	privilegedMode := true
 	return &v1.Container{
-		Name:            name,
+		Name:            c.containerName(),
 		Image:           *dockerImage,
 		ImagePullPolicy: v1.PullIfNotPresent,
 		Resources:       *resourceRequirements,
@@ -490,6 +489,10 @@ func (c *Cluster) generateSpiloPodEnvVars(uid types.UID, spiloConfiguration stri
 		{
 			Name:  "PGUSER_SUPERUSER",
 			Value: c.OpConfig.SuperUsername,
+		},
+		{
+			Name:  "KUBERNETES_SCOPE_LABEL",
+			Value: c.OpConfig.ClusterNameLabel,
 		},
 		{
 			Name: "PGPASSWORD_SUPERUSER",
@@ -741,8 +744,8 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*v1beta1.State
 
 	// generate environment variables for the spilo container
 	spiloEnvVars := deduplicateEnvVars(
-		c.generateSpiloPodEnvVars(c.Postgresql.GetUID(), spiloConfiguration, &spec.Clone, customPodEnvVarsList),
-		c.containerName(), c.logger)
+		c.generateSpiloPodEnvVars(c.Postgresql.GetUID(), spiloConfiguration, &spec.Clone,
+			customPodEnvVarsList), c.containerName(), c.logger)
 
 	// pickup the docker image for the spilo container
 	effectiveDockerImage := util.Coalesce(spec.DockerImage, c.OpConfig.DockerImage)
@@ -750,7 +753,7 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*v1beta1.State
 	volumeMounts := generateVolumeMounts()
 
 	// generate the spilo container
-	spiloContainer := generateSpiloContainer(c.containerName(),
+	spiloContainer := c.generateSpiloContainer(
 		&effectiveDockerImage,
 		resourceRequirements,
 		spiloEnvVars,
