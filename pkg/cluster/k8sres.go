@@ -332,16 +332,16 @@ func generateVolumeMounts() []v1.VolumeMount {
 	}
 }
 
-func (c *Cluster) generateSpiloContainer(
+func generateSpiloContainer(
+	name string,
 	dockerImage *string,
 	resourceRequirements *v1.ResourceRequirements,
 	envVars []v1.EnvVar,
 	volumeMounts []v1.VolumeMount,
 ) *v1.Container {
-	c.logger.Debugf("Generating Spilo container, environment variables: %v", envVars)
 	privilegedMode := true
 	return &v1.Container{
-		Name:            c.containerName(),
+		Name:            name,
 		Image:           *dockerImage,
 		ImagePullPolicy: v1.PullIfNotPresent,
 		Resources:       *resourceRequirements,
@@ -493,6 +493,14 @@ func (c *Cluster) generateSpiloPodEnvVars(uid types.UID, spiloConfiguration stri
 		{
 			Name:  "KUBERNETES_SCOPE_LABEL",
 			Value: c.OpConfig.ClusterNameLabel,
+		},
+		{
+			Name:  "KUBERNETES_ROLE_LABEL",
+			Value: c.OpConfig.PodRoleLabel,
+		},
+		{
+			Name:  "KUBERNETES_LABELS",
+			Value: labels.Set(c.OpConfig.ClusterLabels).String(),
 		},
 		{
 			Name: "PGPASSWORD_SUPERUSER",
@@ -753,14 +761,15 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*v1beta1.State
 	volumeMounts := generateVolumeMounts()
 
 	// generate the spilo container
-	spiloContainer := c.generateSpiloContainer(
+	c.logger.Debugf("Generating Spilo container, environment variables: %v", spiloEnvVars)
+	spiloContainer := generateSpiloContainer(c.containerName(),
 		&effectiveDockerImage,
 		resourceRequirements,
 		spiloEnvVars,
 		volumeMounts,
 	)
 
-	// resolve conflicts between operator-global and per-cluster sidecards
+	// resolve conflicts between operator-global and per-cluster sidecars
 	sideCars := c.mergeSidecars(spec.Sidecars)
 
 	resourceRequirementsScalyrSidecar := makeResources(
@@ -789,7 +798,7 @@ func (c *Cluster) generateStatefulSet(spec *acidv1.PostgresSpec) (*v1beta1.State
 	tolerationSpec := tolerations(&spec.Tolerations, c.OpConfig.PodToleration)
 	effectivePodPriorityClassName := util.Coalesce(spec.PodPriorityClassName, c.OpConfig.PodPriorityClassName)
 
-	// generate pod template for the statefulset, based on the spilo container and sidecards
+	// generate pod template for the statefulset, based on the spilo container and sidecars
 	if podTemplate, err = generatePodTemplate(
 		c.Namespace,
 		c.labelsSet(true),
